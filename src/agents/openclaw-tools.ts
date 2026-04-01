@@ -14,6 +14,7 @@ import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
+import { createOrchestrateTool } from "./tools/orchestrate-tool.js";
 import { createPdfTool } from "./tools/pdf-tool.js";
 import { createSessionStatusTool } from "./tools/session-status-tool.js";
 import { createSessionsHistoryTool } from "./tools/sessions-history-tool.js";
@@ -184,6 +185,10 @@ export function createOpenClawTools(
       agentSessionKey: options?.agentSessionKey,
     }),
     createSessionStatusTool({
+      agentSessionKey: options?.agentSessionKey,
+      config: options?.config,
+    }),
+    createOrchestrateTool({
       agentSessionKey: options?.agentSessionKey,
       config: options?.config,
     }),
