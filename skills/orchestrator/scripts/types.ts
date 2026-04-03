@@ -1,4 +1,4 @@
-type Subtask = {
+export type Subtask = {
   /** 子任务唯一ID */
   id: string;
   /** 任务描述（具体、可执行） */

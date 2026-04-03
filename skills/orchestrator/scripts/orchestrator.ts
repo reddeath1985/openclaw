@@ -120,52 +120,48 @@ export async function orchestrate(params: {
 
       // 并发控制：限制每批次并发数
       const maxConcurrent = config.maxConcurrent ?? getDefaultMaxConcurrent();
-      const semaphore = new Array(maxConcurrent).fill(null);
-      const batchPromises: Promise<void>[] = [];
 
-      for (let i = 0; i < batch.length; i++) {
-        const subtaskId = batch[i];
+      // 并行任务执行函数
+      const executeSubtask = async (subtaskId: string): Promise<void> => {
         const subtask = decomposition.subtasks.find(st => st.id === subtaskId)!;
         const match = matches.get(subtaskId)!;
+        try {
+          const result = await spawnSubtask(subtask, match.agentId, config.timeoutPerTask ?? getDefaultTimeout());
+          subtaskIdToResult.set(subtaskId, result);
+        } catch (error: any) {
+          subtaskIdToResult.set(subtaskId, {
+            subtaskId,
+            status: 'failed',
+            output: undefined,
+            error: error.message,
+            durationMs: 0,
+          });
+        }
+      };
 
-        // Wait for semaphore slot
-        await new Promise<void>((resolve) => {
-          const run = async () => {
-            try {
-              const result = await spawnSubtask(subtask, match.agentId, config.timeoutPerTask ?? getDefaultTimeout());
-              subtaskIdToResult.set(subtaskId, result);
-            } catch (error: any) {
-              subtaskIdToResult.set(subtaskId, {
-                subtaskId,
-                status: 'failed',
-                output: undefined,
-                error: error.message,
-                durationMs: 0,
-              });
-            } finally {
-              // Release semaphore
-              semaphore.shift();
-              semaphore.push(null);
-              resolve();
-            }
-          };
+      // 简单实现：批量并行执行（依赖外部maxSpawnDepth控制总深度）
+      const batchPromises = batch.map(subtaskId => executeSubtask(subtaskId));
 
-          if (semaphore.some(s => s === null)) {
-            run();
-          } else {
-            // 等待一个slot释放
-            setTimeout(run, 100);
-          }
-        });
+      // 如果批次超过并发限制，分批等待
+      if (batch.length > maxConcurrent) {
+        for (let i = 0; i < batch.length; i += maxConcurrent) {
+          const chunk = batchPromises.slice(i, i + maxConcurrent);
+          await Promise.all(chunk);
+        }
+      } else {
+        await Promise.all(batchPromises);
       }
-
-      // 等待当前批次全部完成
-      await Promise.all(batchPromises);
 
       // 进度回调
       if (onProgress) {
         const completedSoFar = Array.from(subtaskIdToResult.values()).filter(r => r.status === 'completed').length;
-        onProgress(batchIdx + 1, totalBatches, completedSoFar);
+        onProgress({
+          phase: 'batch-complete',
+          batch: batchIdx + 1,
+          totalBatches,
+          completed: completedSoFar,
+          total: decomposition.subtasks.length,
+        });
       }
     }
 

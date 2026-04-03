@@ -427,7 +427,7 @@ def main():
             print("   Examples: enabled")
     if args.tool:
         print(f"   Tool: {args.tool} ({args.type}) - {args.tool_desc}")
-    else:
+    if not resources:
         print("   Resources: none (create as needed)")
     print()
 
